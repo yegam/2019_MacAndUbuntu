@@ -1,6 +1,4 @@
-
-void countSort(int* arr, int size)
-{
-    /* Your Implementation */
-
+void countSort(int* arr, int size){
+	int B[size];
+//	int C[??];
 }
