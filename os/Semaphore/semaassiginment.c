@@ -8,7 +8,7 @@
 #define EATING 1 
 #define THINKING 2 
 #define NUM_PHIL 5 
-#define EXEC_TIME 300
+#define EXEC_TIME 600
  
 typedef struct philosopher 
 { 
@@ -19,8 +19,8 @@ typedef struct philosopher
 
 philosopher phil[NUM_PHIL]; 
 sem_t chopstick[NUM_PHIL];
+int global_time;
 
-// 10~500 msec wait 
 int idlewait() 
 { 
     int sleepTimeMS = (rand() % 491 + 10); 
@@ -34,49 +34,49 @@ unsigned int tick() //get current time(msec)
     gettimeofday(&tv, (void*)0); 
     return tv.tv_sec * (unsigned int)1000 + tv.tv_usec / 1000; 
 } 
+/*------------------------------------------------------*///제가 고친 부분에 대한 구분선입니다. 
 void initPhil(void) 
 {
-/*------------------------------------------------------*/ 
 	int i;
-	for(i=0;i<NUM_PHIL;i++){
-		sem_init(&chopstick[i],0,1);
+	for(i=0;i<NUM_PHIL;i++){//초기화 함수입니다.
+		sem_init(&chopstick[i],0,1);//sem_init를 통해 초기화 합니다.
 		phil[i].numEat = 0;
 		phil[i].state = THINKING;
 		phil[i].wait = 0;
 	}
-/*------------------------------------------------------*/ 
 } 
+/*------------------------------------------------------*/ 
+/*------------------------------------------------------*/
 void* dining(void* arg) 
 { 
     unsigned short i = (int*)arg;
     unsigned short left, right;     
-	unsigned int start_time,current_time;
+	unsigned int start_time,rand_time;
     unsigned int start_hungry, end_hungry;
-/*------------------------------------------------------*/ 
-	int l,r,j,k;
-	philosopher* currentPhil = &phil[i];
-	left = i % NUM_PHIL;
+	int l,r;
+	philosopher* currentPhil = &phil[i];//현재 진행중인 스레드(철학자)를 포인터로 받습니다.
+	left = i % NUM_PHIL;//철학자의 index를 기준으로 left와 right의 index를 계산합니다.
 	right = (i + 4) % NUM_PHIL;
-	idlewait();
+	idlewait();//각 스레드 별로 랜덤하게 기다린 후 스레드의 state를 변경합니다.
 
     currentPhil->state = HUNGRY;
 
 	start_hungry = tick();
 	while(currentPhil->state == HUNGRY){
-		sem_getvalue(&chopstick[left],&l);
+		sem_getvalue(&chopstick[left],&l);//세마포어변수를 통해 젓가락을 잡을 수 있는지 판단합니다.
 		sem_getvalue(&chopstick[right],&r);
-		if(l == 1 && i % 2 == 0){
+		if(l == 1 && i % 2 == 0){//짝수 인덱스를 가진 스레드인 경우에는 왼쪽부터 잡습니다.
 			sem_wait(&chopstick[left]);
 			if(r == 1){
 				sem_wait(&chopstick[right]);
-    			currentPhil->state = EATING;
+    			currentPhil->state = EATING;//양쪽 모두 잡을 경우 state를 변경합니다. 
 			}
 			else{
 				sem_post(&chopstick[left]);
 				idlewait();
 			}
 		}
-		else if(r == 1 && i % 2 == 1){
+		else if(r == 1 && i % 2 == 1){//홀수 인덱스를 가진 스레드의 경우에는 오른쪽 부터 잡습니다.
 			sem_wait(&chopstick[right]);
 			if(l == 1){
 				sem_wait(&chopstick[left]);
@@ -88,30 +88,13 @@ void* dining(void* arg)
 			}
 		}
 	}
+	end_hungry = tick();//hungry가 끝났기 때문에 시간을 측정합니다.
 	start_time = tick();
-	/*
-	k = 0;	
-		printf("YAMMY phil[%d] \n",i);
-		for(j=0;j<NUM_PHIL;j++)
-			printf("phil[%d] State = %d\n",j,phil[j].state);
-		for(j=0;j<NUM_PHIL;j++){
-			sem_getvalue(&chopstick[j],&r);//
-			printf("i = %d semavalue = %d \n",j,r);
-		}
-	*/
-		sem_getvalue(&chopstick[left],&l);
-		sem_getvalue(&chopstick[right],&r);
-		end_hungry = tick();
-	while(currentPhil->state == EATING && l == 0 && r ==0) {
-		//printf("----HUNGRY START---- phil[%d] left = %d right = %d \n",i,l,r);
-		sem_getvalue(&chopstick[left],&l);
-		sem_getvalue(&chopstick[right],&r);
-		while ( (tick() - start_time)/10 < EXEC_TIME && l== 0 && r == 0){//random하게 돌리기
-			/*
-			if ( k == 0)
-				printf("----EATING START---- phil[%d]\n\n",i);
-			k++;*/
-			currentPhil->state = EATING;
+	sem_getvalue(&chopstick[left],&l);
+	sem_getvalue(&chopstick[right],&r);
+
+	while(currentPhil->state == EATING && l == 0 && r ==0) {//state와 왼쪽 오른쪽 젓가락 상태를 검사합니다.
+		while ( (tick() - start_time)/100 < EXEC_TIME ){//먹습니다.
 			currentPhil->wait += (end_hungry - start_hungry);
 			currentPhil->numEat++;
 		}
@@ -119,24 +102,14 @@ void* dining(void* arg)
 	}
 	sem_getvalue(&chopstick[left],&l);
 	sem_getvalue(&chopstick[right],&r);
-	if(currentPhil->state == EATING && l == 0 && r == 0){
+	if(currentPhil->state == EATING && l == 0 && r == 0){//Eating의 상태였고 젓가락을 모두 가지고 있던 상태였다면 젓가락을 반납합니다.
 		sem_post(&chopstick[left]);
 		sem_post(&chopstick[right]);
 	}
-	sem_getvalue(&chopstick[left],&l);
-	sem_getvalue(&chopstick[right],&r);
-	currentPhil->state = THINKING;
-
-	/*printf("----THINKING START---- phil[%d]\n",i);
-	for(j=0;j<NUM_PHIL;j++){
-		sem_getvalue(&chopstick[j],&r);//
-		printf("i = %d semavalue = %d \n",j,r);
-	}
-	//dining(left);
-	//dining(right);*/
+	currentPhil->state = THINKING;//상태를 바꿉니다.
     return (void*)NULL;
-/*------------------------------------------------------*/ 
 } 
+/*------------------------------------------------------*/ 
  
 void main(void) 
 { 
@@ -152,14 +125,14 @@ void main(void)
 /*------------------------------------------------------*/ 
     for(i=0;i<NUM_PHIL;i++){ 
 		args[i] = i;
-		pthread_create(&t[i],NULL,dining,args[i]);
-	}
- 
+		pthread_create(&t[i],NULL,dining,args[i]);//스레드 생성
+	} 
  	for(i=0;i<NUM_PHIL;i++)
 		pthread_join(t[i],NULL);
-    end = tick(); 
+
    	for(i=0; i<NUM_PHIL; i++)
         sem_destroy(&chopstick[i]);
+    end = tick(); 
 /*------------------------------------------------------*/ 
 
     for(i=0;i<NUM_PHIL;i++) 

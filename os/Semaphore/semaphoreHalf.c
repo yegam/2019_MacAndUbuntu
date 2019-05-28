@@ -8,7 +8,7 @@
 #define EATING 1 
 #define THINKING 2 
 #define NUM_PHIL 5 
-#define EXEC_TIME 300
+#define EXEC_TIME 600
  
 typedef struct philosopher 
 { 
@@ -58,82 +58,69 @@ void* dining(void* arg)
 	left = i % NUM_PHIL;
 	right = (i + 4) % NUM_PHIL;
 	idlewait();
+	start_time = tick();
+	start_hungry = tick();
 
     currentPhil->state = HUNGRY;
+	sem_getvalue(&chopstick[left],&l);
+	sem_getvalue(&chopstick[right],&r);
 
-	start_hungry = tick();
-	while(currentPhil->state == HUNGRY){
-		sem_getvalue(&chopstick[left],&l);
-		sem_getvalue(&chopstick[right],&r);
-		if(l == 1 && i % 2 == 0){
-			sem_wait(&chopstick[left]);
-			if(r == 1){
-				sem_wait(&chopstick[right]);
-    			currentPhil->state = EATING;
-			}
-			else{
-				sem_post(&chopstick[left]);
-				idlewait();
-			}
-		}
-		else if(r == 1 && i % 2 == 1){
+	if(l == 1 && i % 2 == 0){
+		sem_wait(&chopstick[left]);
+		if(r == 1)
 			sem_wait(&chopstick[right]);
-			if(l == 1){
-				sem_wait(&chopstick[left]);
-    			currentPhil->state = EATING;
-			}
-			else{
-				sem_post(&chopstick[right]);
-				idlewait();
-			}
+		else{
+			sem_post(&chopstick[left]);
+			idlewait();
 		}
 	}
-	start_time = tick();
-	/*
-	k = 0;	
-		printf("YAMMY phil[%d] \n",i);
-		for(j=0;j<NUM_PHIL;j++)
-			printf("phil[%d] State = %d\n",j,phil[j].state);
-		for(j=0;j<NUM_PHIL;j++){
-			sem_getvalue(&chopstick[j],&r);//
-			printf("i = %d semavalue = %d \n",j,r);
+	else if(r == 1 && i % 2 == 1){
+		sem_wait(&chopstick[right]);
+		if(l == 1)
+			sem_wait(&chopstick[left]);
+		else{
+			sem_post(&chopstick[right]);
+			idlewait();
 		}
-	*/
+	}
+
+	k = 0;
+		printf("phil[left] State = %d\n",phil[left].state);
+		printf("phil[%d] State = %d\n",i,currentPhil->state);
+		printf("phil[right] State = %d\n",phil[right].state);
+
+	if(currentPhil->state == HUNGRY && phil[left].state != EATING && phil[right].state != EATING){
 		sem_getvalue(&chopstick[left],&l);
 		sem_getvalue(&chopstick[right],&r);
-		end_hungry = tick();
-	while(currentPhil->state == EATING && l == 0 && r ==0) {
-		//printf("----HUNGRY START---- phil[%d] left = %d right = %d \n",i,l,r);
-		sem_getvalue(&chopstick[left],&l);
-		sem_getvalue(&chopstick[right],&r);
-		while ( (tick() - start_time)/10 < EXEC_TIME && l== 0 && r == 0){//random하게 돌리기
-			/*
+		printf("----HUNGRY START---- phil[%d] left = %d right = %d \n",i,l,r);
+		//random_time = 
+		current_time += tick() - start_time;
+		printf("time %d \n",current_time);
+		while ( tick()-start_time < EXEC_TIME && l== 0 && r == 0){//random하게 돌리기
 			if ( k == 0)
 				printf("----EATING START---- phil[%d]\n\n",i);
-			k++;*/
+			k++;
+			end_hungry = tick();//while에서 무한루프한다.
 			currentPhil->state = EATING;
 			currentPhil->wait += (end_hungry - start_hungry);
 			currentPhil->numEat++;
 		}
-		break;
 	}
-	sem_getvalue(&chopstick[left],&l);
-	sem_getvalue(&chopstick[right],&r);
+	sem_getvalue(&chopstick[left],&l);//
+	sem_getvalue(&chopstick[right],&r);//
 	if(currentPhil->state == EATING && l == 0 && r == 0){
 		sem_post(&chopstick[left]);
 		sem_post(&chopstick[right]);
 	}
-	sem_getvalue(&chopstick[left],&l);
-	sem_getvalue(&chopstick[right],&r);
+	sem_getvalue(&chopstick[left],&l);//
+	sem_getvalue(&chopstick[right],&r);//
 	currentPhil->state = THINKING;
 
-	/*printf("----THINKING START---- phil[%d]\n",i);
+	printf("----THINKING START---- phil[%d]\n",i);
 	for(j=0;j<NUM_PHIL;j++){
 		sem_getvalue(&chopstick[j],&r);//
 		printf("i = %d semavalue = %d \n",j,r);
 	}
-	//dining(left);
-	//dining(right);*/
     return (void*)NULL;
 /*------------------------------------------------------*/ 
 } 
@@ -150,6 +137,7 @@ void main(void)
     start = tick(); 
     initPhil(); 
 /*------------------------------------------------------*/ 
+	//sem_init(&lock, 0, NUM_PHIL - 1);
     for(i=0;i<NUM_PHIL;i++){ 
 		args[i] = i;
 		pthread_create(&t[i],NULL,dining,args[i]);
